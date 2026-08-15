@@ -95,6 +95,10 @@ dev_self_test
 dev_router_status
 ```
 
+> 说明：`dev_router_status` 属于 Router Standard preset（agent-plane），需在选择了
+> "Router Standard (experimental)" 的新会话中使用；`dev_self_test` 需要 DSH 源码
+> checkout（`DSH_CHECKOUT` 或 `~/dsh-harness`），配置见 docs/TROUBLESHOOTING.md §11。
+
 预期：
 
 ```

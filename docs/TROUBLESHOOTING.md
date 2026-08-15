@@ -66,3 +66,47 @@ cat ~/.dsh/profiles/web/package.json   # 查看 dependencies 与 dsh.profile.bun
 
 - 备份目录（`*.bak.<时间戳>`）累积：见 docs/UPDATE.md 的备份清理一节
 - 注入器/路由器本身的问题请先查各自 upstream 仓库的 README/文档，再考虑上报
+
+## 11. dev_self_test / dev_build_plugin 需要 DSH 源码 checkout
+
+注入器的自检（`dev_self_test`）与插件生产线（`dev_scaffold_plugin` → `dev_build_plugin`）
+需要一个 DSH 源码 checkout：链接 `cordis` / `cosmokit` / `schemastery` /
+`@deepseek-ai/dsh-tools` 等依赖并用 checkout 的 tsc 编译。
+
+探测顺序：`DSH_CHECKOUT` 环境变量（须含 `packages/` 目录）→ `~/dsh-harness` →
+`~/dsh` → `~/.dsh/dsh-harness`。用 npx/全局包方式安装 DSH 的机器没有源码目录，
+自检第一项会报 `无 DSH_CHECKOUT`（注入器本身不受影响，注入/热重载/卸载照常）。
+
+本机配置方法（源码快照 + 运行版本已构建包 + tsc 工具链）：
+
+```bash
+# 1. 源码快照（也可 git clone --depth 1 https://github.com/deepseek-ai/deepseek-harness.git ~/dsh-harness）
+curl -fL -o /tmp/dsh-harness.tar.gz https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/heads/master
+mkdir -p ~/dsh-harness && tar -xzf /tmp/dsh-harness.tar.gz -C ~/dsh-harness --strip-components=1
+
+# 2. tsc 工具链（放 checkout 内 .toolchain，避免触发 monorepo 全量安装）
+cd ~/dsh-harness && mkdir -p .toolchain
+echo '{"name":"dsh-harness-toolchain","private":true,"version":"0.0.0"}' > .toolchain/package.json
+(cd .toolchain && npm install --no-workspaces --no-audit --no-fund typescript@5 @types/node@24)
+mkdir -p node_modules/.bin node_modules/@types
+ln -sfn ../.toolchain/node_modules/typescript node_modules/typescript
+ln -sfn ../../.toolchain/node_modules/@types/node node_modules/@types/node
+ln -sfn ../../.toolchain/node_modules/.bin/tsc node_modules/.bin/tsc
+
+# 3. 源码里未构建的包 → 替换为运行中 harness 同版本的已构建包（npx 安装路径按实际调整）
+NPX="$(dirname "$(dirname "$(dirname "$(command -v dsh)")")")"   # 缓存根（含 node_modules/）
+mv vendor/cordis vendor/cordis.src && mv vendor/cosmokit vendor/cosmokit.src
+mv vendor/schemastery vendor/schemastery.src && mv packages/core/tools packages/core/tools.src
+ln -s "$NPX/node_modules/@deepseek-ai/cordis" vendor/cordis
+ln -s "$NPX/node_modules/@deepseek-ai/cosmokit" vendor/cosmokit
+ln -s "$NPX/node_modules/@deepseek-ai/schemastery" vendor/schemastery
+ln -s "$NPX/node_modules/@deepseek-ai/dsh-tools" packages/core/tools
+
+# 4. pnpm store 布局（build.sh 用 find node_modules/.pnpm 找 @standard-schema）
+SSV="$(node -pe "require('$NPX/node_modules/@standard-schema/spec/package.json').version")"
+mkdir -p "node_modules/.pnpm/@standard-schema+spec@$SSV/node_modules/@standard-schema"
+ln -s "$NPX/node_modules/@standard-schema/spec" "node_modules/.pnpm/@standard-schema+spec@$SSV/node_modules/@standard-schema/spec"
+```
+
+完成后 `dev_self_test` 预期 8/8 PASS（构建 → 注入 → 热重载 → 节流 → 预检拦截 → 卸载 → patch 合法性）。
+注意：若日后重装 DSH（npx 缓存哈希变化），第 3、4 步的链接会失效，需要重新执行。

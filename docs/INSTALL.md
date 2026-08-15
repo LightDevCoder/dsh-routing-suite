@@ -45,6 +45,12 @@ chmod +x install.sh
 2. 依次执行 `dev_plugin_status` → `dev_self_test` → `dev_router_status`
 3. 预期：injector active、self-test PASS、router 正常显示 mode / band / persona / core tools
 
+> 注：`dev_self_test` 与插件生产线（dev_scaffold_plugin → dev_build_plugin）需要 DSH 源码
+> checkout（探测 `DSH_CHECKOUT` / `~/dsh-harness`）；缺省时自检第一项报"无 DSH_CHECKOUT"，
+> 不影响注入器本身。配置方法见 docs/TROUBLESHOOTING.md §11。
+> `dev_router_status` 是 Router Standard preset 的 agent-plane 工具，须在选择了
+> "Router Standard (experimental)" 的新会话中使用。
+
 也可随时运行 `./check.sh` 检查环境状态。
 
 ## 5. 重复安装
