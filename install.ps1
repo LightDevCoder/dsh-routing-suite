@@ -1,29 +1,153 @@
-# dsh-routing-suite 一键安装（Windows PowerShell）
-# 步骤：1) 装配注入器  2) 安装 router-standard 预设  3) 提示重启
+# dsh-routing-suite 一键安装（Windows PowerShell 5.1+）
+# 与 install.sh 行为对齐：依赖检查 → 注入器 Release 安装 → Router preset 安装（带备份）→ 验证
+# 用法：powershell -ExecutionPolicy Bypass -File .\install.ps1
 $ErrorActionPreference = 'Stop'
+
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$versionsPath = Join-Path $root 'versions.json'
+if (-not (Test-Path $versionsPath)) {
+  Write-Host "[error] 找不到 versions.json（$versionsPath）——版本锁文件缺失，无法继续" -ForegroundColor Red
+  exit 1
+}
+$versions = Get-Content -Raw $versionsPath | ConvertFrom-Json
+$injVersion = $versions.injector.version
+$routerVersion = $versions.router.version
 
-Write-Host '=== [1/3] 装配注入器 ===' -ForegroundColor Cyan
-$injector = Join-Path $root 'injector'
-if (-not (Test-Path (Join-Path $injector 'lib\index.js'))) {
-  Write-Host 'injector/lib 缺失——先构建：cd injector; bash scripts/build.sh（需 DSH_CHECKOUT）或从 Release 下载 tgz' -ForegroundColor Yellow
-} else {
-  & dsh plugin --profile web add $injector 2>&1 | Out-Host
-  Write-Host '注入器已装配（重启后由 bundles 接管）' -ForegroundColor Green
+# DSH_HOME：优先尊重环境变量，否则 %USERPROFILE%\.dsh
+if ($env:DSH_HOME -and $env:DSH_HOME.Trim()) { $dshHome = $env:DSH_HOME } else { $dshHome = Join-Path $HOME '.dsh' }
+$profile = 'web'
+if ($env:DSH_PROFILE) { $profile = $env:DSH_PROFILE }
+
+$ts = Get-Date -Format 'yyyyMMdd-HHmmss'
+
+function Backup-Dir([string]$dir) {
+  if (Test-Path $dir) {
+    $bak = "$dir.bak.$ts"
+    Move-Item $dir $bak
+    Write-Host "旧版本已备份到: $bak" -ForegroundColor Yellow
+  }
 }
 
-Write-Host '=== [2/3] 安装 router-standard 预设 ===' -ForegroundColor Cyan
-$target = Join-Path $env:USERPROFILE '.dsh\.agent-presets\router-standard'
-if (Test-Path $target) {
-  Write-Host "预设已存在：$target（如需覆盖请先手动删除）" -ForegroundColor Yellow
-} else {
-  New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
-  Copy-Item -Recurse (Join-Path $root 'preset\preset') $target
-  Write-Host "预设已安装：$target" -ForegroundColor Green
+# ---- 依赖检查（不满足即停止，不做任何修改） ----
+Write-Host "=== [1/4] 依赖检查 ===" -ForegroundColor Cyan
+$missing = @()
+foreach ($cmd in @('dsh','node','git','curl','tar','pnpm')) {
+  if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { $missing += $cmd }
+}
+if ($missing.Count -gt 0) {
+  Write-Host "缺少关键依赖，安装已停止（未做任何修改）：$($missing -join ', ')" -ForegroundColor Red
+  Write-Host '  pnpm: 可执行 npm install -g pnpm，或 corepack enable pnpm'
+  exit 1
+}
+Write-Host "DSH_HOME = $dshHome ; profile = $profile" -ForegroundColor Green
+
+# ---- 注入器安装 ----
+Write-Host "`n=== [2/4] 装配注入器 v$injVersion ===" -ForegroundColor Cyan
+$injDir = Join-Path $dshHome 'local-plugins\dsh-super-injector'
+$needInjector = $true
+if (Test-Path (Join-Path $injDir '.version')) {
+  $installed = (Get-Content (Join-Path $injDir '.version') -Raw).Trim()
+  if ($installed -eq $injVersion) {
+    Write-Host "注入器 v$injVersion 已安装（$injDir），跳过下载" -ForegroundColor Green
+    $needInjector = $false
+  }
+}
+if ($needInjector) {
+  Backup-Dir $injDir
+  $tmp = Join-Path $env:TEMP "dsh-injector-$ts"
+  New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+  $tgz = Join-Path $tmp "dsh-external-dsh-super-injector-$injVersion.tgz"
+  $url = "https://github.com/yjh051108/dsh-super-injector/releases/download/v$injVersion/dsh-external-dsh-super-injector-$injVersion.tgz"
+  Write-Host "下载 Release 包：$url" -ForegroundColor Cyan
+  Invoke-WebRequest -Uri $url -OutFile $tgz
+  New-Item -ItemType Directory -Force -Path (Split-Path $injDir) | Out-Null
+  New-Item -ItemType Directory -Force -Path $injDir | Out-Null
+  tar -xzf $tgz -C $injDir --strip-components=1
+  Remove-Item $tgz -Force
+  if (-not (Test-Path (Join-Path $injDir 'lib\index.js'))) {
+    Write-Host "[error] 注入器 Release 包内容不完整（缺少 lib/index.js）" -ForegroundColor Red
+    exit 1
+  }
+  Set-Content -Path (Join-Path $injDir '.version') -Value $injVersion -NoNewline
+  Write-Host "装配注入器到 profile '$profile' ..." -ForegroundColor Cyan
+  & dsh plugin --profile $profile add $injDir
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "[error] dsh plugin 装配注入器失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
+    exit $LASTEXITCODE
+  }
+  Write-Host "注入器 v$injVersion 已装配进 $profile profile（重启 DSH 后生效）" -ForegroundColor Green
+  Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
 
-Write-Host '=== [3/3] 完成 ===' -ForegroundColor Cyan
-Write-Host '1. 重启 DSH（web 服务）' -ForegroundColor Yellow
-Write-Host '2. GUI 新建会话 → 选择 Router Standard (experimental)' -ForegroundColor Yellow
-Write-Host '3. 发任务：生成任务自动 react，维护任务自动 spec，模糊任务进 weak 内路由' -ForegroundColor Yellow
-Write-Host '4. AI 自优化工具：dev_router_status / dev_router_mode / dev_mode_subagent' -ForegroundColor Yellow
+# ---- Router preset 安装 ----
+Write-Host "`n=== [3/4] 安装 Router Standard v$routerVersion ===" -ForegroundColor Cyan
+$routerDir = Join-Path $dshHome '.agent-presets\router-standard'
+$needRouter = $true
+if (Test-Path (Join-Path $routerDir '.version')) {
+  $installed = (Get-Content (Join-Path $routerDir '.version') -Raw).Trim()
+  if ($installed -eq $routerVersion) {
+    Write-Host "Router Standard v$routerVersion 已安装（$routerDir），跳过" -ForegroundColor Green
+    $needRouter = $false
+  }
+}
+if ($needRouter) {
+  Backup-Dir $routerDir
+  New-Item -ItemType Directory -Force -Path $routerDir | Out-Null
+  # 优先使用仓库 submodule，缺失时回退到上游 Release tgz
+  $sm = Join-Path $root 'preset\preset'
+  $src = $null
+  if ((Test-Path (Join-Path $sm 'preset.yml')) -and (Test-Path (Join-Path $sm 'router-core.mjs'))) {
+    $src = $sm
+  } else {
+    $tmp = Join-Path $env:TEMP "dsh-router-$ts"
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    $tgz = Join-Path $tmp "dsh-router-standard-$routerVersion.tgz"
+    $url = "https://github.com/yjh051108/dsh-router-standard/releases/download/v$routerVersion/dsh-router-standard-$routerVersion.tgz"
+    Write-Host "下载 Release 包（submodule 不可用）：$url" -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $url -OutFile $tgz
+    tar -xzf $tgz -C $tmp --strip-components=1
+    Remove-Item $tgz -Force
+    if (-not (Test-Path (Join-Path $tmp 'preset\preset.yml'))) {
+      Write-Host "[error] Router Release 包缺少 preset/preset.yml" -ForegroundColor Red
+      exit 1
+    }
+    foreach ($f in @('LICENSE','NOTICE')) {
+      if (Test-Path (Join-Path $tmp $f)) { Copy-Item (Join-Path $tmp $f) (Join-Path $routerDir $f) }
+    }
+    $src = Join-Path $tmp 'preset'
+    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+  }
+  Copy-Item -Recurse -Force (Join-Path $src '*') $routerDir
+  foreach ($f in @('preset.yml','agent.cordis.yml','router-bootstrap.mjs','router-core.mjs')) {
+    if (-not (Test-Path (Join-Path $routerDir $f))) {
+      Write-Host "[error] Router preset 安装不完整（缺少 $f）" -ForegroundColor Red
+      exit 1
+    }
+  }
+  Set-Content -Path (Join-Path $routerDir '.version') -Value $routerVersion -NoNewline
+  Write-Host "Router Standard v$routerVersion 已安装（$routerDir）" -ForegroundColor Green
+}
+
+# ---- 验证 ----
+Write-Host "`n=== [4/4] 验证 ===" -ForegroundColor Cyan
+$rows = @(
+  @('DSH CLI', (Get-Command dsh -ErrorAction SilentlyContinue) -ne $null),
+  @('Injector files', (Test-Path (Join-Path $injDir 'lib\index.js'))),
+  @('Router preset', (Test-Path (Join-Path $routerDir 'preset.yml')))
+)
+$allOk = $true
+foreach ($r in $rows) {
+  if ($r[1]) { Write-Host ("{0,-22} OK" -f $r[0]) -ForegroundColor Green }
+  else       { Write-Host ("{0,-22} FAIL" -f $r[0]) -ForegroundColor Red; $allOk = $false }
+}
+if ($allOk) {
+  Write-Host "`nEnvironment ready." -ForegroundColor Green
+} else {
+  Write-Host "`nEnvironment NOT ready —— 存在失败项" -ForegroundColor Red
+  exit 1
+}
+
+Write-Host "`n重启 DSH（web 服务）后，在新会话中验证："
+Write-Host "  dev_plugin_status   -> dsh-super-injector active"
+Write-Host "  dev_self_test       -> PASS"
+Write-Host "  dev_router_status   -> Router Standard 正常显示"

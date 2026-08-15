@@ -1,0 +1,25 @@
+NOTICE
+
+This repository is a personal maintenance fork of yjh051108/dsh-routing-suite,
+rebuilt as a personal DSH distribution/bootstrap layer. It does not modify the
+internal logic of the upstream components; it selects versions, installs,
+updates, verifies, and documents them.
+
+Upstream components and their licenses:
+
+  - yjh051108/dsh-routing-suite
+      https://github.com/yjh051108/dsh-routing-suite
+      License: MIT (per the upstream README)
+  - yjh051108/dsh-super-injector
+      https://github.com/yjh051108/dsh-super-injector
+      License: BSD-3-Clause (per its package.json)
+  - yjh051108/dsh-router-standard
+      https://github.com/yjh051108/dsh-router-standard
+      License: MIT (see preset/LICENSE in this repository)
+
+The DeepSeek Harness ecosystem (MIT) is the host platform these components
+run on.
+
+The installed router-standard preset copies the upstream LICENSE and NOTICE
+files alongside it. The original DeepSeek copyright and MIT license terms
+apply to derived content as recorded in the router NOTICE.
