@@ -31,7 +31,7 @@ Copy-Item -Recurse .\preset\preset $target
 
 | 路径 | 仓库 | 版本 | 作用 |
 |---|---|---|---|
-| `injector/` | [dsh-super-injector](https://github.com/dsh-external/dsh-super-injector) | 0.3.3 | 运行时注入器：dev_* 工具全家桶（注入/热重载/侧挂转正/卸载/路由自愈） |
+| `injector/` | [dsh-super-injector](https://github.com/yjh051108/dsh-super-injector) | 0.3.1 | 运行时注入器：dev_* 工具全家桶（注入/热重载/侧挂转正/卸载/路由自愈） |
 | `preset/` | [dsh-router-standard](https://github.com/yjh051108/dsh-router-standard) | 0.1.0 | 思维模式路由预设：spec/react/weak 三模式 + 近距离引导 + 单任务三锚 |
 
 两个组件独立演进（submodule 指向各自 main），套装聚合安装链与总览。
