@@ -69,6 +69,10 @@ cat ~/.dsh/profiles/web/package.json   # 查看 dependencies 与 dsh.profile.bun
 
 ## 11. dev_self_test / dev_build_plugin 需要 DSH 源码 checkout
 
+> 先判断是否需要：**创建/定制 preset（YAML 组合，如 Router Standard 的 preset）不需要
+> checkout**——用 DSH 的"创造模式"（cordis preset）或直接编辑 `~/.dsh/.agent-presets/`
+> 即可，全程无编译。checkout 只在**开发 TypeScript 插件**（tsc 编译 → lib/）时才需要。
+
 注入器的自检（`dev_self_test`）与插件生产线（`dev_scaffold_plugin` → `dev_build_plugin`）
 需要一个 DSH 源码 checkout：链接 `cordis` / `cosmokit` / `schemastery` /
 `@deepseek-ai/dsh-tools` 等依赖并用 checkout 的 tsc 编译。
