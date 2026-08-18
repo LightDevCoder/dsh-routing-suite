@@ -114,3 +114,9 @@ ln -s "$NPX/node_modules/@standard-schema/spec" "node_modules/.pnpm/@standard-sc
 
 完成后 `dev_self_test` 预期 8/8 PASS（构建 → 注入 → 热重载 → 节流 → 预检拦截 → 卸载 → patch 合法性）。
 注意：若日后重装 DSH（npx 缓存哈希变化），第 3、4 步的链接会失效，需要重新执行。
+
+## 12. 设置中多出重复且空白的「⚙️ 插件」菜单
+
+- **原因**：上游 `dsh-super-injector` 注册了一个实验性的 `settings.section` 前端插槽，固定命名为 `'插件'`（与 DSH 原生插件设置冲突），且其前端组件缺少 DOM 挂载逻辑导致点开后页面空白。
+- **本 fork 处理**：安装脚本在装配时会自动剥离注入器 `package.json` 中的 `dsh.client` 字段，保留全部核心后端注入、热重载与 Agent 工具能力，避免前端出现多余的空白设置项。
+- **已安装环境修复**：重新执行 `./install.sh`（或手动删除 `~/.dsh/local-plugins/dsh-super-injector/package.json` 中的 `dsh.client` 配置块）并重启 DSH 即可。

@@ -185,6 +185,18 @@ injector_install() {
   state="$(injector_state)"
 
   if [ "$state" = "same" ] && [ "$FORCE" != "1" ]; then
+    # 检查已安装的 package.json 是否仍残留 client 声明（去除历史残留，避免前端出现重复空白插件页）
+    if [ -f "$INJECTOR_DIR/package.json" ]; then
+      node -e '
+        const fs = require("fs");
+        const p = process.argv[1];
+        const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+        if (pkg.dsh && pkg.dsh.client) {
+          delete pkg.dsh.client;
+          fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+        }
+      ' "$INJECTOR_DIR/package.json" 2>/dev/null || true
+    fi
     ok "注入器 v${INJECTOR_VERSION} 已安装（${INJECTOR_DIR}），跳过下载"
     return 0
   fi
@@ -220,6 +232,17 @@ injector_install() {
   for f in package.json lib/index.js cordis.patch.yml; do
     [ -f "$tmp/$f" ] || die "注入器 Release 包内容不完整（缺少 ${f}）"
   done
+
+  # 移除未就绪且会导致 DSH 设置页出现重复空白「插件」页的前端 client 声明
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+    if (pkg.dsh && pkg.dsh.client) {
+      delete pkg.dsh.client;
+      fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+    }
+  ' "$tmp/package.json"
 
   rm -f "$tgz"
   mv "$tmp" "$INJECTOR_DIR"

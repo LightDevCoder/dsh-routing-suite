@@ -68,6 +68,19 @@ if ($needInjector) {
     Write-Host "[error] 注入器 Release 包内容不完整（缺少 lib/index.js）" -ForegroundColor Red
     exit 1
   }
+  # 移除未就绪且会导致 DSH 设置页出现重复空白「插件」页的前端 client 声明
+  $pkgPath = Join-Path $injDir 'package.json'
+  if (Test-Path $pkgPath) {
+    node -e '
+      const fs = require("fs");
+      const p = process.argv[1];
+      const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (pkg.dsh && pkg.dsh.client) {
+        delete pkg.dsh.client;
+        fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+      }
+    ' "$pkgPath"
+  }
   Set-Content -Path (Join-Path $injDir '.version') -Value $injVersion -NoNewline
   Write-Host "装配注入器到 profile '$profile' ..." -ForegroundColor Cyan
   & dsh plugin --profile $profile add $injDir
@@ -77,6 +90,20 @@ if ($needInjector) {
   }
   Write-Host "注入器 v$injVersion 已装配进 $profile profile（重启 DSH 后生效）" -ForegroundColor Green
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+} else {
+  # 检查已安装的 package.json 是否仍残留 client 声明（去除历史残留）
+  $pkgPath = Join-Path $injDir 'package.json'
+  if (Test-Path $pkgPath) {
+    node -e '
+      const fs = require("fs");
+      const p = process.argv[1];
+      const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (pkg.dsh && pkg.dsh.client) {
+        delete pkg.dsh.client;
+        fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+      }
+    ' "$pkgPath"
+  }
 }
 
 # ---- Router preset 安装 ----
