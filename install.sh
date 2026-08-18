@@ -327,17 +327,22 @@ install_single_preset() {
   mkdir -p "$target_dir"
   cp -R "$src_dir/." "$target_dir"
 
-  # 重写 preset 名称与描述（router-spec 改名为 router-deep）
-  if [ -n "$display_name" ] && [ -f "$target_dir/preset.yml" ]; then
+  # 规范化 preset.yml（重写名称与描述并用引号包裹，防止内嵌冒号等符号破坏 YAML 解析导致 DSH 无法显示标题和描述）
+  if [ -f "$target_dir/preset.yml" ]; then
     node -e '
       const fs = require("fs");
       const p = process.argv[1], name = process.argv[2], patch = process.argv[3];
-      let c = fs.readFileSync(p, "utf8");
-      c = c.replace(/^name:\s*.+$/m, "name: " + name);
-      if (patch === "deep") {
-        c = c.replace(/\(spec\)/g, "(deep)");
+      const raw = fs.readFileSync(p, "utf8");
+      let descMatch = raw.match(/description:\s*(.+)$/m);
+      let desc = descMatch ? descMatch[1].trim() : "";
+      if ((desc.startsWith("\"") && desc.endsWith("\"")) || (desc.startsWith("\x27") && desc.endsWith("\x27"))) {
+        desc = desc.slice(1, -1);
       }
-      fs.writeFileSync(p, c, "utf8");
+      if (patch === "deep") {
+        desc = desc.replace(/\(spec\)/g, "(deep)");
+      }
+      const out = "name: " + JSON.stringify(name) + "\ndescription: " + JSON.stringify(desc) + "\n";
+      fs.writeFileSync(p, out, "utf8");
     ' "$target_dir/preset.yml" "$display_name" "$desc_patch"
   fi
 

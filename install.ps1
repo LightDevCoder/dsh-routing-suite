@@ -142,14 +142,21 @@ function Install-Preset([string]$srcDir, [string]$targetDir, [string]$displayNam
     Backup-Dir $targetDir
     New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
     Copy-Item -Recurse -Force (Join-Path $srcDir '*') $targetDir
-    if ($patchMode -eq 'deep') {
-      $ymlPath = Join-Path $targetDir 'preset.yml'
-      if (Test-Path $ymlPath) {
-        $c = Get-Content -Raw $ymlPath
-        $c = $c -replace 'name:\s*Router Spec', 'name: Router Deep'
-        $c = $c -replace '\(spec\)', '(deep)'
-        Set-Content -Path $ymlPath -Value $c
+    # 规范化 preset.yml（重写名称与描述并用引号包裹，防止内嵌冒号破坏 YAML 解析）
+    $ymlPath = Join-Path $targetDir 'preset.yml'
+    if (Test-Path $ymlPath) {
+      $raw = Get-Content -Raw $ymlPath
+      $desc = ""
+      if ($raw -match 'description:\s*(.+)') {
+        $desc = $Matches[1].Trim().Trim('"').Trim("'")
       }
+      if ($patchMode -eq 'deep') {
+        $desc = $desc -replace '\(spec\)', '(deep)'
+      }
+      $nameJson = ConvertTo-Json $displayName
+      $descJson = ConvertTo-Json $desc
+      $out = "name: $nameJson`ndescription: $descJson`n"
+      Set-Content -Path $ymlPath -Value $out
     }
     foreach ($f in @('preset.yml','agent.cordis.yml','router-bootstrap.mjs','router-core.mjs')) {
       if (-not (Test-Path (Join-Path $targetDir $f))) {
