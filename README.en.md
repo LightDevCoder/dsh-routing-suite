@@ -49,14 +49,96 @@ into a **reproducible, upgradeable, and rollback-ready** personal workspace:
 - **Health Checks**: Run `./check.sh` anytime to verify CLI, directories, registration, and presets.
 - **Clean UI**: Automatically strips unready client slot declarations from the injector to prevent duplicate blank plugin settings pages.
 
+## Preset Descriptions
+
+| Preset | Use Cases | Mechanism & Features |
+|---|---|---|
+| **`Router Standard (experimental)`** | Rapid daily dev, bug fixes, refactoring | **RL-Interface Restoration**: Single minimal persona sentence + core tool set (`read`/`edit`/`glob`/`grep`), rapid think-act feedback loops. |
+| **`Router Deep (experimental)`** | Complex architecture, hard bugs, deep design | **Deep-Think-First Mode** (renamed from `router-spec`): Classified persona + full prompt sections, allowing long first-turn reasoning chains. |
+
+> Both presets automatically restore the full Standard tool surface after the first durable tool call (`tool/call`), retain session modes across turns, and provide `dev_router_status` diagnostics.
+
 ## Verification
 
 After restarting DSH, run these in a new session:
 
-1. `dev_plugin_status` → Verify `dsh-super-injector` is active
-2. `dev_self_test` → PASS
-3. Preset Selection → Choose `Router Standard (experimental)` or `Router Deep (experimental)`
-4. `dev_router_status` → Verify router preset is active and running
+```
+dev_plugin_status
+dev_self_test
+dev_router_status
+```
+
+Expected output:
+
+```
+dev_plugin_status
+→ dsh-super-injector active
+
+dev_self_test
+→ PASS
+
+dev_router_status
+→ Shows mode / band / persona / core tools for the active preset
+```
+
+Run health checks anytime:
+
+```
+DSH CLI                OK
+DSH_HOME               /Users/.../.dsh
+Injector files         OK
+Injector registration  OK
+Router Standard        OK
+Router Deep            OK
+Injector version       OK
+Router Std ver         OK
+Router Deep ver        OK
+
+Environment ready.
+```
+
+## Rollback
+
+- **Router**: Pre-upgrade presets are backed up to `${DSH_HOME}/.agent-presets/router-standard.bak.<timestamp>` and `router-deep.bak.<timestamp>`. To restore: delete the current directory and rename the backup folder.
+- **Injector**: Old versions are backed up to `${DSH_HOME}/local-plugins/dsh-super-injector.bak.<timestamp>`.
+- See [docs/UPDATE.md](docs/UPDATE.md) for full rollback details.
+
+## Upstream Sources
+
+| Role | Repository |
+|---|---|
+| Suite Upstream | [yjh051108/dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite) |
+| Injector Upstream | [yjh051108/dsh-super-injector](https://github.com/yjh051108/dsh-super-injector) |
+| Router Upstream | [yjh051108/dsh-router-standard](https://github.com/yjh051108/dsh-router-standard) |
+
+## Repository Structure
+
+```
+dsh-routing-suite/
+├── README.md
+├── README.en.md
+├── LICENSE
+├── NOTICE
+├── versions.json        # Version lock (single source of truth)
+├── install.sh           # macOS/Linux installer
+├── install.ps1          # Windows installer
+├── update.sh            # Controlled upgrade script
+├── check.sh             # Health check script
+├── injector/            # submodule @ v0.3.3
+├── preset/              # submodule @ v0.2.0
+└── docs/
+    ├── INSTALL.md
+    ├── UPDATE.md
+    ├── TROUBLESHOOTING.md
+    └── UPSTREAM.md
+```
+
+## Documentation
+
+- [docs/INSTALL.md](docs/INSTALL.md) — Detailed installation guide
+- [docs/UPDATE.md](docs/UPDATE.md) — Updates and rollbacks
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Troubleshooting
+- [docs/UPSTREAM.md](docs/UPSTREAM.md) — Upstream relationships and sync workflow
 
 ## License
 

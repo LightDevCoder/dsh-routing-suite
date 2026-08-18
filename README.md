@@ -91,6 +91,15 @@ git pull
 
 `update.sh` = 受控升级：读取 `versions.json` → 对比已安装版本 → 升级 injector / router（旧版本自动备份）→ health check。它不会自动寻找 GitHub 最新 Release——版本升级始终由 `versions.json` 决定。
 
+## 预设说明
+
+| 预设名称 | 适用场景 | 机制与特点 |
+|---|---|---|
+| **`Router Standard (experimental)`** | 快速日常开发、Bug 修复、自动化重构 | **RL 接口还原模式**：单句精简 persona + 基础工具面（read/edit/glob/grep），极速 think-act 动作反馈循环。 |
+| **`Router Deep (experimental)`** | 疑难攻坚、复杂架构设计、长链路思考 | **深度思考优先模式**（原 router-spec 改名）：分类式 persona + 全量提示词段落，允许首轮长思维链充分展开。 |
+
+> 两个预设均具备：首个持久化工具调用（`tool/call`）后自动恢复 Standard 全量工具面；会话模式自动保持；内置 `dev_router_status` 诊断。
+
 ## 如何验证
 
 安装/更新后**重启 DSH**，在新会话中依次执行：
@@ -101,9 +110,7 @@ dev_self_test
 dev_router_status
 ```
 
-> 说明：`dev_router_status` 属于 Router Standard preset（agent-plane），需在选择了
-> "Router Standard (experimental)" 的新会话中使用；`dev_self_test` 需要 DSH 源码
-> checkout（`DSH_CHECKOUT` 或 `~/dsh-harness`），配置见 docs/TROUBLESHOOTING.md §11。
+> 说明：`dev_router_status` 属于 Router preset（agent-plane），需在选择了 "Router Standard" 或 "Router Deep" 的新会话中使用；`dev_self_test` 需要 DSH 源码 checkout（`DSH_CHECKOUT` 或 `~/dsh-harness`），配置见 docs/TROUBLESHOOTING.md §11。
 
 预期：
 
@@ -115,23 +122,28 @@ dev_self_test
 → PASS
 
 dev_router_status
-→ Router Standard：mode / band / persona / core tools 正常显示
+→ 当前所选 preset 的 mode / band / persona / core tools 正常显示
 ```
 
 随时可用 `./check.sh` 做环境健康检查：
 
 ```
 DSH CLI                OK
+DSH_HOME               /Users/.../.dsh
 Injector files         OK
 Injector registration  OK
-Router preset          OK
+Router Standard        OK
+Router Deep            OK
+Injector version       OK
+Router Std ver         OK
+Router Deep ver        OK
 
 Environment ready.
 ```
 
 ## 如何回滚
 
-- **Router**：升级前旧 preset 自动备份为 `${DSH_HOME}/.agent-presets/router-standard.bak.<时间戳>`，恢复：删掉当前目录，把备份改名为 `router-standard` 即可
+- **Router**：升级前旧 preset 自动备份为 `${DSH_HOME}/.agent-presets/router-standard.bak.<时间戳>` 与 `router-deep.bak.<时间戳>`，恢复：删掉当前目录，把对应备份改名即可
 - **注入器**：旧版本备份在 `${DSH_HOME}/local-plugins/dsh-super-injector.bak.<时间戳>`；恢复后重新执行 `dsh plugin --profile web add <目录>`
 - 详细步骤见 [docs/UPDATE.md](docs/UPDATE.md) 的 Rollback 一节
 
@@ -150,6 +162,7 @@ Environment ready.
 ```
 dsh-routing-suite/
 ├── README.md
+├── README.en.md
 ├── LICENSE
 ├── NOTICE
 ├── versions.json        # 版本锁（唯一版本来源）
@@ -158,7 +171,7 @@ dsh-routing-suite/
 ├── update.sh            # 受控升级
 ├── check.sh             # 健康检查
 ├── injector/            # submodule @ v0.3.3
-├── preset/              # submodule @ v0.1.1
+├── preset/              # submodule @ v0.2.0
 └── docs/
     ├── INSTALL.md
     ├── UPDATE.md
