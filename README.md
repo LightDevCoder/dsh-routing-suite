@@ -1,5 +1,7 @@
 # dsh-routing-suite — 个人 DSH 安装与路由发行仓库
 
+[中文](README.md) | [English](README.en.md)
+
 > 这是基于 [yjh051108/dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite) 的个人维护版本（fork：LightDevCoder/dsh-routing-suite）。
 > 原仓库保留为 `upstream`，公共改进会按需同步（见 [docs/UPSTREAM.md](docs/UPSTREAM.md)）。
 
