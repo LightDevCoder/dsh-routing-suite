@@ -29,7 +29,8 @@ INJECTOR_REPO="https://github.com/yjh051108/dsh-super-injector"
 ROUTER_REPO="https://github.com/yjh051108/dsh-router-standard"
 
 INJECTOR_DIR_NAME="dsh-super-injector"
-ROUTER_ID="router-standard"
+ROUTER_STANDARD_ID="router-standard"
+ROUTER_DEEP_ID="router-deep"
 
 PROFILE="${DSH_PROFILE:-web}"
 VERSIONS_FILE="$SCRIPT_DIR/versions.json"
