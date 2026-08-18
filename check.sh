@@ -17,7 +17,8 @@ VERSIONS_FILE="$SCRIPT_DIR/versions.json"
 
 INJECTOR_PKG="@dsh-external/dsh-super-injector"
 INJECTOR_DIR_NAME="dsh-super-injector"
-ROUTER_ID="router-standard"
+ROUTER_STANDARD_ID="router-standard"
+ROUTER_DEEP_ID="router-deep"
 
 FAILED=0
 
@@ -112,22 +113,42 @@ else
   fi
 fi
 
-# ---- 5. Router preset ----
-ROUTER_DIR="$DSH_HOME/.agent-presets/$ROUTER_ID"
+# ---- 5. Router Presets (Standard & Deep) ----
 ROUTER_VERSION="$(locked_version router)"
-ROUTER_MARKER="$(installed_marker "$ROUTER_DIR")"
 
-if [ ! -d "$ROUTER_DIR" ]; then
-  check_row "Router preset" "FAIL" "目录不存在: $ROUTER_DIR"
+# 5.1 Router Standard
+ROUTER_STD_DIR="$DSH_HOME/.agent-presets/$ROUTER_STANDARD_ID"
+ROUTER_STD_MARKER="$(installed_marker "$ROUTER_STD_DIR")"
+
+if [ ! -d "$ROUTER_STD_DIR" ]; then
+  check_row "Router Standard" "FAIL" "目录不存在: $ROUTER_STD_DIR"
 else
-  ROUTER_MISSING=""
+  STD_MISSING=""
   for f in preset.yml agent.cordis.yml router-bootstrap.mjs router-core.mjs; do
-    [ -f "$ROUTER_DIR/$f" ] || ROUTER_MISSING="$ROUTER_MISSING $f"
+    [ -f "$ROUTER_STD_DIR/$f" ] || STD_MISSING="$STD_MISSING $f"
   done
-  if [ -n "$ROUTER_MISSING" ]; then
-    check_row "Router preset" "FAIL" "缺少文件:$ROUTER_MISSING"
+  if [ -n "$STD_MISSING" ]; then
+    check_row "Router Standard" "FAIL" "缺少文件:$STD_MISSING"
   else
-    check_row "Router preset" "OK"
+    check_row "Router Standard" "OK"
+  fi
+fi
+
+# 5.2 Router Deep
+ROUTER_DEEP_DIR="$DSH_HOME/.agent-presets/$ROUTER_DEEP_ID"
+ROUTER_DEEP_MARKER="$(installed_marker "$ROUTER_DEEP_DIR")"
+
+if [ ! -d "$ROUTER_DEEP_DIR" ]; then
+  check_row "Router Deep" "FAIL" "目录不存在: $ROUTER_DEEP_DIR"
+else
+  DEEP_MISSING=""
+  for f in preset.yml agent.cordis.yml router-bootstrap.mjs router-core.mjs; do
+    [ -f "$ROUTER_DEEP_DIR/$f" ] || DEEP_MISSING="$DEEP_MISSING $f"
+  done
+  if [ -n "$DEEP_MISSING" ]; then
+    check_row "Router Deep" "FAIL" "缺少文件:$DEEP_MISSING"
+  else
+    check_row "Router Deep" "OK"
   fi
 fi
 
@@ -144,16 +165,28 @@ else
   check_row "Injector version" "FAIL" "未安装"
 fi
 
-if [ -n "$ROUTER_MARKER" ]; then
-  if [ "$ROUTER_MARKER" = "$ROUTER_VERSION" ]; then
-    check_row "Router version" "OK" "v${ROUTER_MARKER}（与 versions.json 一致）"
+if [ -n "$ROUTER_STD_MARKER" ]; then
+  if [ "$ROUTER_STD_MARKER" = "$ROUTER_VERSION" ]; then
+    check_row "Router Std ver" "OK" "v${ROUTER_STD_MARKER}（与 versions.json 一致）"
   else
-    check_row "Router version" "FAIL" "已安装 v${ROUTER_MARKER}，锁定 v${ROUTER_VERSION} —— 运行 ./update.sh"
+    check_row "Router Std ver" "FAIL" "已安装 v${ROUTER_STD_MARKER}，锁定 v${ROUTER_VERSION} —— 运行 ./update.sh"
   fi
-elif [ -d "$ROUTER_DIR" ]; then
-  check_row "Router version" "FAIL" "已安装但缺少 .version 标记 —— 运行 ./install.sh --force"
+elif [ -d "$ROUTER_STD_DIR" ]; then
+  check_row "Router Std ver" "FAIL" "已安装但缺少 .version 标记 —— 运行 ./install.sh --force"
 else
-  check_row "Router version" "FAIL" "未安装"
+  check_row "Router Std ver" "FAIL" "未安装"
+fi
+
+if [ -n "$ROUTER_DEEP_MARKER" ]; then
+  if [ "$ROUTER_DEEP_MARKER" = "$ROUTER_VERSION" ]; then
+    check_row "Router Deep ver" "OK" "v${ROUTER_DEEP_MARKER}（与 versions.json 一致）"
+  else
+    check_row "Router Deep ver" "FAIL" "已安装 v${ROUTER_DEEP_MARKER}，锁定 v${ROUTER_VERSION} —— 运行 ./update.sh"
+  fi
+elif [ -d "$ROUTER_DEEP_DIR" ]; then
+  check_row "Router Deep ver" "FAIL" "已安装但缺少 .version 标记 —— 运行 ./install.sh --force"
+else
+  check_row "Router Deep ver" "FAIL" "未安装"
 fi
 
 # ---- 汇总 ----

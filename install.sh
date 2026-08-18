@@ -103,22 +103,29 @@ for arg in "$@"; do
   esac
 done
 
-MODE_LABEL="install"
-[ "$MODE" = "update" ] && MODE_LABEL="升级"
-
 # ---------------------------------------------------------------- preflight
 
 MISSING=""
-command -v git  >/dev/null 2>&1 || MISSING="$MISSING git"
-command -v node >/dev/null 2>&1 || MISSING="$MISSING node"
-command -v dsh  >/dev/null 2>&1 || MISSING="$MISSING dsh"
-command -v curl >/dev/null 2>&1 || MISSING="$MISSING curl"
-command -v tar  >/dev/null 2>&1 || MISSING="$MISSING tar"
-command -v pnpm >/dev/null 2>&1 || PNPM_MISSING=1
+PNPM_MISSING=0
+
+for cmd in dsh node git curl tar; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    MISSING="$MISSING $cmd"
+  fi
+done
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  PNPM_MISSING=1
+fi
 
 case "$(uname -s)" in
   Darwin|Linux) ;;
   *) die "当前仅支持 macOS / Linux（Windows 请用 install.ps1）" ;;
+esac
+
+case "$MODE" in
+  install) MODE_LABEL="安装" ;;
+  update)  MODE_LABEL="升级" ;;
 esac
 
 if [ "${PNPM_MISSING:-0}" = "1" ]; then
@@ -151,7 +158,8 @@ mkdir -p "$DSH_HOME" 2>/dev/null || die "无法创建 DSH_HOME: $DSH_HOME"
 [ -w "$DSH_HOME" ] || die "DSH_HOME 不可写: $DSH_HOME"
 
 INJECTOR_DIR="$DSH_HOME/local-plugins/$INJECTOR_DIR_NAME"
-ROUTER_DIR="$DSH_HOME/.agent-presets/$ROUTER_ID"
+ROUTER_STANDARD_DIR="$DSH_HOME/.agent-presets/$ROUTER_STANDARD_ID"
+ROUTER_DEEP_DIR="$DSH_HOME/.agent-presets/$ROUTER_DEEP_ID"
 
 say "dsh-routing-suite ${MODE_LABEL}（锁定版本 injector v${INJECTOR_VERSION} / router v${ROUTER_VERSION}）"
 ok "DSH_HOME = $DSH_HOME"
@@ -256,20 +264,21 @@ injector_install() {
 
 # ---------------------------------------------------------------- 路由预设安装
 
-router_installed_version() {
-  [ -f "$ROUTER_DIR/.version" ] && cat "$ROUTER_DIR/.version" || true
+router_preset_version() {
+  local dir="$1"
+  [ -f "$dir/.version" ] && cat "$dir/.version" || true
 }
 
 # 状态：missing / incomplete / same / different
-router_state() {
-  local f
-  if [ ! -d "$ROUTER_DIR" ]; then
+router_preset_state() {
+  local dir="$1"
+  if [ ! -d "$dir" ]; then
     printf 'missing'
   else
     for f in preset.yml agent.cordis.yml router-bootstrap.mjs router-core.mjs; do
-      [ -f "$ROUTER_DIR/$f" ] || { printf 'incomplete'; return; }
+      [ -f "$dir/$f" ] || { printf 'incomplete'; return; }
     done
-    if [ "$(router_installed_version)" = "$ROUTER_VERSION" ]; then
+    if [ "$(router_preset_version "$dir")" = "$ROUTER_VERSION" ]; then
       printf 'same'
     else
       printf 'different'
@@ -279,42 +288,78 @@ router_state() {
 
 # 优先使用仓库内 submodule（preset/ 指向 router-standard 的锁定 tag），
 # 缺失或损坏时回退到上游 Release tgz。
-router_source_dir() {
+router_source_root() {
   local sm="$SCRIPT_DIR/preset/preset"
-  if [ -f "$sm/preset.yml" ] && [ -f "$sm/agent.cordis.yml" ] && \
-     [ -f "$sm/router-bootstrap.mjs" ] && [ -f "$sm/router-core.mjs" ]; then
+  if [ -f "$sm/router-standard/preset.yml" ] && [ -f "$sm/router-standard/agent.cordis.yml" ] && \
+     [ -f "$sm/router-spec/preset.yml" ] && [ -f "$sm/router-spec/agent.cordis.yml" ]; then
     printf '%s' "$sm"
   else
     printf 'download'
   fi
 }
 
-router_install() {
-  local state ver src tmp tgz url lic_src
-  state="$(router_state)"
+install_single_preset() {
+  local preset_id="$1" src_dir="$2" target_dir="$3" display_name="$4" desc_patch="$5" lic_src="$6"
+  local state ver
+  state="$(router_preset_state "$target_dir")"
 
   if [ "$state" = "same" ] && [ "$FORCE" != "1" ]; then
-    ok "Router Standard v${ROUTER_VERSION} 已安装（${ROUTER_DIR}），跳过"
+    ok "Preset ${display_name} v${ROUTER_VERSION} 已安装（${target_dir}），跳过"
     return 0
   fi
 
   if [ "$state" = "missing" ]; then
-    say "安装 Router Standard v${ROUTER_VERSION}"
+    say "安装 Preset ${display_name} v${ROUTER_VERSION}"
   else
-    ver="$(router_installed_version)"
+    ver="$(router_preset_version "$target_dir")"
     if [ "$state" = "different" ]; then
-      warn "已安装 Router v${ver:-unknown}，与锁定的 v${ROUTER_VERSION} 不一致，备份后重装"
+      warn "已安装 Preset ${display_name} v${ver:-unknown}，与锁定的 v${ROUTER_VERSION} 不一致，备份后重装"
     elif [ "$state" = "incomplete" ]; then
-      warn "检测到不完整的 Router preset（缺少必需文件），备份后重装"
+      warn "检测到不完整的 Preset ${display_name}（缺少必需文件），备份后重装"
     else
-      warn "--force：备份现有 Router v${ver:-unknown} 后重装"
+      warn "--force：备份现有 Preset ${display_name} v${ver:-unknown} 后重装"
     fi
-    backup_dir "$ROUTER_DIR"
-    say "安装 Router Standard v${ROUTER_VERSION}"
+    backup_dir "$target_dir"
+    say "安装 Preset ${display_name} v${ROUTER_VERSION}"
   fi
 
-  mkdir -p "$DSH_HOME/.agent-presets" "$ROUTER_DIR"
-  src="$(router_source_dir)"
+  mkdir -p "$target_dir"
+  cp -R "$src_dir/." "$target_dir"
+
+  # 重写 preset 名称与描述（router-spec 改名为 router-deep）
+  if [ -n "$display_name" ] && [ -f "$target_dir/preset.yml" ]; then
+    node -e '
+      const fs = require("fs");
+      const p = process.argv[1], name = process.argv[2], patch = process.argv[3];
+      let c = fs.readFileSync(p, "utf8");
+      c = c.replace(/^name:\s*.+$/m, "name: " + name);
+      if (patch === "deep") {
+        c = c.replace(/\(spec\)/g, "(deep)");
+      }
+      fs.writeFileSync(p, c, "utf8");
+    ' "$target_dir/preset.yml" "$display_name" "$desc_patch"
+  fi
+
+  # 顺带保留 LICENSE / NOTICE（存在才复制，缺失不阻塞）
+  if [ -f "$lic_src/LICENSE" ] && [ ! -f "$target_dir/LICENSE" ]; then
+    cp "$lic_src/LICENSE" "$target_dir/LICENSE"
+  fi
+  if [ -f "$lic_src/NOTICE" ] && [ ! -f "$target_dir/NOTICE" ]; then
+    cp "$lic_src/NOTICE" "$target_dir/NOTICE"
+  fi
+
+  # 确认 preset 内容完整
+  for f in preset.yml agent.cordis.yml router-bootstrap.mjs router-core.mjs; do
+    [ -f "$target_dir/$f" ] || die "Preset ${display_name} 安装不完整（缺少 ${f}）"
+  done
+  printf '%s' "$ROUTER_VERSION" > "$target_dir/.version"
+  ok "Preset ${display_name} v${ROUTER_VERSION} 已安装（${target_dir}）"
+}
+
+router_install() {
+  mkdir -p "$DSH_HOME/.agent-presets"
+  local src tmp tgz url lic_src
+  src="$(router_source_root)"
   tmp=""
   lic_src="$SCRIPT_DIR/preset"   # submodule 根部（含 LICENSE/NOTICE）
 
@@ -328,30 +373,23 @@ router_install() {
     curl -fL --retry 2 --connect-timeout 20 -o "$tgz" "$url" || die "下载 Router Release 失败: $url"
     tar -xzf "$tgz" -C "$tmp" --strip-components=1 || die "解压 Router Release 包失败"
     rm -f "$tgz"
-    [ -f "$tmp/preset/preset.yml" ] || die "Router Release 包缺少 preset/preset.yml"
     lic_src="$tmp"               # 包根（LICENSE/NOTICE 所在）
     src="$tmp/preset"
   fi
 
-  say "安装 Router preset 到 $ROUTER_DIR"
-  cp -R "$src/." "$ROUTER_DIR"
+  # 1. 安装 router-standard（RL 接口还原模式）
+  local std_src="$src/router-standard"
+  [ -d "$std_src" ] || std_src="$src"
+  install_single_preset "router-standard" "$std_src" "$ROUTER_STANDARD_DIR" "Router Standard (experimental)" "standard" "$lic_src"
 
-  # 顺带保留 LICENSE / NOTICE（存在才复制，缺失不阻塞）
-  if [ -f "$lic_src/LICENSE" ] && [ ! -f "$ROUTER_DIR/LICENSE" ]; then
-    cp "$lic_src/LICENSE" "$ROUTER_DIR/LICENSE"
-  fi
-  if [ -f "$lic_src/NOTICE" ] && [ ! -f "$ROUTER_DIR/NOTICE" ]; then
-    cp "$lic_src/NOTICE" "$ROUTER_DIR/NOTICE"
+  # 2. 安装 router-deep（深度思考优先模式，由 router-spec 改名）
+  local spec_src="$src/router-spec"
+  if [ -d "$spec_src" ]; then
+    install_single_preset "router-deep" "$spec_src" "$ROUTER_DEEP_DIR" "Router Deep (experimental)" "deep" "$lic_src"
   fi
 
-  # 确认 preset 内容完整
-  for f in preset.yml agent.cordis.yml router-bootstrap.mjs router-core.mjs; do
-    [ -f "$ROUTER_DIR/$f" ] || die "Router preset 安装不完整（缺少 ${f}）"
-  done
-  printf '%s' "$ROUTER_VERSION" > "$ROUTER_DIR/.version"
   [ -n "$tmp" ] && rm -rf "$tmp"
   CURRENT_TMP=""
-  ok "Router Standard v${ROUTER_VERSION} 已安装（${ROUTER_DIR}）"
 }
 
 # ---------------------------------------------------------------- 主流程
@@ -366,4 +404,6 @@ fi
 printf '\n重启 DSH（web 服务）后，在新会话中验证：\n'
 printf '  dev_plugin_status   → dsh-super-injector active\n'
 printf '  dev_self_test       → PASS\n'
-printf '  dev_router_status   → Router Standard 正常显示\n'
+printf '  Preset 选择         → Router Standard (experimental) 或 Router Deep (experimental)\n'
+printf '  dev_router_status   → 对应 preset 正常显示\n'
+

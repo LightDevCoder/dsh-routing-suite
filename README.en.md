@@ -14,7 +14,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-After installation → **Restart DSH (web service)** → Select `Router Standard (experimental)` preset in a new session.
+After installation → **Restart DSH (web service)** → Select `Router Standard (experimental)` or `Router Deep (experimental)` preset in a new session.
 
 For Windows users using [install.ps1](install.ps1) (PowerShell):
 
@@ -29,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 A **long-term personal DSH distribution / bootstrap repository**. It does not rewrite component internals, but stably packages:
 
 ```
-DSH + dsh-super-injector + dsh-router-standard
+DSH + dsh-super-injector + dsh-router-standard (Standard & Deep)
 ```
 
 into a **reproducible, upgradeable, and rollback-ready** personal workspace:
@@ -41,7 +41,8 @@ into a **reproducible, upgradeable, and rollback-ready** personal workspace:
 
 ## Key Features
 
-- **Version Locking**: Does not track upstream `main` blindly; strictly locked via `versions.json`.
+- **Version Locking**: Strictly locked via `versions.json` (injector **v0.3.3** / router **v0.2.0**).
+- **Dual Presets**: Installs both `Router Standard` (RL-interface restoration) and `Router Deep` (deep-think-first mode).
 - **One-Click Install**: Supports macOS/Linux (`install.sh`) and Windows (`install.ps1`) with automatic dependency preflight checks.
 - **Idempotent Re-install & Safe Backup**: Auto-backs up existing versions before reinstalling/upgrading.
 - **Controlled Upgrades**: Run `./update.sh` to safely upgrade to locked versions.
@@ -54,7 +55,8 @@ After restarting DSH, run these in a new session:
 
 1. `dev_plugin_status` → Verify `dsh-super-injector` is active
 2. `dev_self_test` → PASS
-3. `dev_router_status` → Router Standard is active and running
+3. Preset Selection → Choose `Router Standard (experimental)` or `Router Deep (experimental)`
+4. `dev_router_status` → Verify router preset is active and running
 
 ## License
 

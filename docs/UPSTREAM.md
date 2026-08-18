@@ -11,7 +11,7 @@
 ## 2. 版本锁定原则
 
 - `versions.json` 是**唯一版本来源**：安装器/更新器/健康检查都读它
-- submodule 指针锁定在对应 Release tag（`injector` → v0.3.3，`preset` → v0.1.1）
+- submodule 指针锁定在对应 Release tag（`injector` → v0.3.3，`preset` → v0.2.0）
 - 不直接无条件追踪两个组件 upstream 的 `main`
 - upstream `main` 更新**不会**自动改变个人生产环境；是否升级由维护者查看 changelog 后决定（见 docs/UPDATE.md 的发布流程）
 

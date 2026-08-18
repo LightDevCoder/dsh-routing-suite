@@ -14,7 +14,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-安装完成 → **重启 DSH（web 服务）** → 新会话选择 `Router Standard (experimental)` preset。
+安装完成 → **重启 DSH（web 服务）** → 新会话选择 `Router Standard (experimental)` 或 `Router Deep (experimental)` preset。
 
 Windows 用户使用 [install.ps1](install.ps1)（PowerShell）：
 
@@ -29,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 一套**个人长期使用的 DSH distribution / bootstrap 仓库**。它不重新实现任何组件，只负责稳定地把
 
 ```
-DSH + dsh-super-injector + dsh-router-standard
+DSH + dsh-super-injector + dsh-router-standard (Standard & Deep)
 ```
 
 装成一套**可重复部署、可升级、可回滚**的个人工作环境：
@@ -43,8 +43,9 @@ DSH + dsh-super-injector + dsh-router-standard
 
 原仓库是作者的 demo/kit（submodule + 手动步骤）。个人使用需要：
 
-- **版本锁**：不追踪 upstream `main`，一切以 `versions.json` 为准（当前 injector **v0.3.3** / router **v0.1.1**）
+- **版本锁**：不追踪 upstream `main`，一切以 `versions.json` 为准（当前 injector **v0.3.3** / router **v0.2.0**）
 - **macOS 一键安装**：injector 从上游 Release 下载锁定版本 tgz，无需本地构建
+- **双预设就绪**：一键装配 `Router Standard`（RL 接口还原模式）与 `Router Deep`（深度思考优先模式）
 - **幂等重装**：重复执行不破坏环境；旧版本自动备份
 - **受控升级**：`./update.sh` 按版本锁升级，不自动跟随 upstream 发布
 - **健康检查**：`./check.sh` 一键判断环境状态
@@ -54,7 +55,7 @@ DSH + dsh-super-injector + dsh-router-standard
 | 路径 | 组件仓库 | 锁定版本 | 说明 |
 |---|---|---|---|
 | `injector/` (submodule) | [dsh-super-injector](https://github.com/yjh051108/dsh-super-injector) | [v0.3.3](https://github.com/yjh051108/dsh-super-injector/releases/tag/v0.3.3) | 运行时注入器：dev_* 工具全家桶 |
-| `preset/` (submodule) | [dsh-router-standard](https://github.com/yjh051108/dsh-router-standard) | [v0.1.1](https://github.com/yjh051108/dsh-router-standard/releases/tag/v0.1.1) | 思维模式路由预设（spec/react/weak/mixed + Pro/Flash persona） |
+| `preset/` (submodule) | [dsh-router-standard](https://github.com/yjh051108/dsh-router-standard) | [v0.2.0](https://github.com/yjh051108/dsh-router-standard/releases/tag/v0.2.0) | 思维模式路由双预设：`router-standard` (RL 接口还原) 与 `router-deep` (深度思考优先) |
 
 > 版本号唯一来源是 [versions.json](versions.json)。submodule 指针与 Release 均锁定在对应 tag。
 
@@ -63,8 +64,11 @@ DSH + dsh-super-injector + dsh-router-standard
 `./install.sh` 会依次：
 
 1. **Preflight**：检查 macOS/Linux、`git`、`node`、`dsh`、`curl`、`tar`、`pnpm`（缺 pnpm 时自动尝试 `corepack enable pnpm`）；缺关键依赖即停止，不做任何修改
-2. **安装注入器**：从上游 Release 下载 `dsh-external-dsh-super-injector-<版本>.tgz` → 解压到 `${DSH_HOME:-~/.dsh}/local-plugins/dsh-super-injector` → 校验内容 → `dsh plugin --profile web add`
-3. **安装 Router preset**：完整复制 preset（`preset.yml` / `agent.cordis.yml` / `router-bootstrap.mjs` / `router-core.mjs`）到 `${DSH_HOME:-~/.dsh}/.agent-presets/router-standard`；已存在旧版本时先备份为 `router-standard.bak.<时间戳>`
+2. **安装注入器**：从上游 Release 下载 `dsh-external-dsh-super-injector-<版本>.tgz` → 解压到 `${DSH_HOME:-~/.dsh}/local-plugins/dsh-super-injector` → 自动剥离未就绪的 client 前端声明 → `dsh plugin --profile web add`
+3. **安装 Router 双预设**：
+   - `router-standard` 安装到 `${DSH_HOME:-~/.dsh}/.agent-presets/router-standard`（RL 接口还原模式）
+   - `router-deep`（原 router-spec）安装到 `${DSH_HOME:-~/.dsh}/.agent-presets/router-deep`（深度思考优先模式）
+   - 已存在旧版本时自动备份为 `*.bak.<时间戳>`
 4. **执行 health check** 并输出结果
 
 重复执行安全：同版本直接跳过，旧版本/不完整安装会先备份再处理。

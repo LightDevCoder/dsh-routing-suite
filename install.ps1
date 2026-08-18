@@ -106,53 +106,75 @@ if ($needInjector) {
   }
 }
 
-# ---- Router preset 安装 ----
-Write-Host "`n=== [3/4] 安装 Router Standard v$routerVersion ===" -ForegroundColor Cyan
-$routerDir = Join-Path $dshHome '.agent-presets\router-standard'
-$needRouter = $true
-if (Test-Path (Join-Path $routerDir '.version')) {
-  $installed = (Get-Content (Join-Path $routerDir '.version') -Raw).Trim()
-  if ($installed -eq $routerVersion) {
-    Write-Host "Router Standard v$routerVersion 已安装（$routerDir），跳过" -ForegroundColor Green
-    $needRouter = $false
+# ---- Router presets 安装 ----
+Write-Host "`n=== [3/4] 安装 Router Presets (Standard & Deep) v$routerVersion ===" -ForegroundColor Cyan
+$routerStdDir = Join-Path $dshHome '.agent-presets\router-standard'
+$routerDeepDir = Join-Path $dshHome '.agent-presets\router-deep'
+
+# 判定源目录
+$sm = Join-Path $root 'preset\preset'
+$src = $null
+$tmp = $null
+if ((Test-Path (Join-Path $sm 'router-standard\preset.yml')) -and (Test-Path (Join-Path $sm 'router-spec\preset.yml'))) {
+  $src = $sm
+} else {
+  $tmp = Join-Path $env:TEMP "dsh-router-$ts"
+  New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+  $tgz = Join-Path $tmp "dsh-router-standard-$routerVersion.tgz"
+  $url = "https://github.com/yjh051108/dsh-router-standard/releases/download/v$routerVersion/dsh-router-standard-$routerVersion.tgz"
+  Write-Host "下载 Release 包（submodule 不可用）：$url" -ForegroundColor Cyan
+  Invoke-WebRequest -Uri $url -OutFile $tgz
+  tar -xzf $tgz -C $tmp --strip-components=1
+  Remove-Item $tgz -Force
+  $src = Join-Path $tmp 'preset'
+}
+
+function Install-Preset([string]$srcDir, [string]$targetDir, [string]$displayName, [string]$patchMode) {
+  $need = $true
+  if (Test-Path (Join-Path $targetDir '.version')) {
+    $inst = (Get-Content (Join-Path $targetDir '.version') -Raw).Trim()
+    if ($inst -eq $routerVersion) {
+      Write-Host "$displayName v$routerVersion 已安装（$targetDir），跳过" -ForegroundColor Green
+      $need = $false
+    }
+  }
+  if ($need) {
+    Backup-Dir $targetDir
+    New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+    Copy-Item -Recurse -Force (Join-Path $srcDir '*') $targetDir
+    if ($patchMode -eq 'deep') {
+      $ymlPath = Join-Path $targetDir 'preset.yml'
+      if (Test-Path $ymlPath) {
+        $c = Get-Content -Raw $ymlPath
+        $c = $c -replace 'name:\s*Router Spec', 'name: Router Deep'
+        $c = $c -replace '\(spec\)', '(deep)'
+        Set-Content -Path $ymlPath -Value $c
+      }
+    }
+    foreach ($f in @('preset.yml','agent.cordis.yml','router-bootstrap.mjs','router-core.mjs')) {
+      if (-not (Test-Path (Join-Path $targetDir $f))) {
+        Write-Host "[error] $displayName 安装不完整（缺少 $f）" -ForegroundColor Red
+        exit 1
+      }
+    }
+    Set-Content -Path (Join-Path $targetDir '.version') -Value $routerVersion -NoNewline
+    Write-Host "$displayName v$routerVersion 已安装（$targetDir）" -ForegroundColor Green
   }
 }
-if ($needRouter) {
-  Backup-Dir $routerDir
-  New-Item -ItemType Directory -Force -Path $routerDir | Out-Null
-  # 优先使用仓库 submodule，缺失时回退到上游 Release tgz
-  $sm = Join-Path $root 'preset\preset'
-  $src = $null
-  if ((Test-Path (Join-Path $sm 'preset.yml')) -and (Test-Path (Join-Path $sm 'router-core.mjs'))) {
-    $src = $sm
-  } else {
-    $tmp = Join-Path $env:TEMP "dsh-router-$ts"
-    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-    $tgz = Join-Path $tmp "dsh-router-standard-$routerVersion.tgz"
-    $url = "https://github.com/yjh051108/dsh-router-standard/releases/download/v$routerVersion/dsh-router-standard-$routerVersion.tgz"
-    Write-Host "下载 Release 包（submodule 不可用）：$url" -ForegroundColor Cyan
-    Invoke-WebRequest -Uri $url -OutFile $tgz
-    tar -xzf $tgz -C $tmp --strip-components=1
-    Remove-Item $tgz -Force
-    if (-not (Test-Path (Join-Path $tmp 'preset\preset.yml'))) {
-      Write-Host "[error] Router Release 包缺少 preset/preset.yml" -ForegroundColor Red
-      exit 1
-    }
-    foreach ($f in @('LICENSE','NOTICE')) {
-      if (Test-Path (Join-Path $tmp $f)) { Copy-Item (Join-Path $tmp $f) (Join-Path $routerDir $f) }
-    }
-    $src = Join-Path $tmp 'preset'
-    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
-  }
-  Copy-Item -Recurse -Force (Join-Path $src '*') $routerDir
-  foreach ($f in @('preset.yml','agent.cordis.yml','router-bootstrap.mjs','router-core.mjs')) {
-    if (-not (Test-Path (Join-Path $routerDir $f))) {
-      Write-Host "[error] Router preset 安装不完整（缺少 $f）" -ForegroundColor Red
-      exit 1
-    }
-  }
-  Set-Content -Path (Join-Path $routerDir '.version') -Value $routerVersion -NoNewline
-  Write-Host "Router Standard v$routerVersion 已安装（$routerDir）" -ForegroundColor Green
+
+# 1. 安装 router-standard
+$stdSrc = Join-Path $src 'router-standard'
+if (-not (Test-Path $stdSrc)) { $stdSrc = $src }
+Install-Preset $stdSrc $routerStdDir "Router Standard" "standard"
+
+# 2. 安装 router-deep
+$specSrc = Join-Path $src 'router-spec'
+if (Test-Path $specSrc) {
+  Install-Preset $specSrc $routerDeepDir "Router Deep" "deep"
+}
+
+if ($tmp -and (Test-Path $tmp)) {
+  Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
 
 # ---- 验证 ----
@@ -160,7 +182,8 @@ Write-Host "`n=== [4/4] 验证 ===" -ForegroundColor Cyan
 $rows = @(
   @('DSH CLI', (Get-Command dsh -ErrorAction SilentlyContinue) -ne $null),
   @('Injector files', (Test-Path (Join-Path $injDir 'lib\index.js'))),
-  @('Router preset', (Test-Path (Join-Path $routerDir 'preset.yml')))
+  @('Router Standard', (Test-Path (Join-Path $routerStdDir 'preset.yml'))),
+  @('Router Deep', (Test-Path (Join-Path $routerDeepDir 'preset.yml')))
 )
 $allOk = $true
 foreach ($r in $rows) {
@@ -177,4 +200,6 @@ if ($allOk) {
 Write-Host "`n重启 DSH（web 服务）后，在新会话中验证："
 Write-Host "  dev_plugin_status   -> dsh-super-injector active"
 Write-Host "  dev_self_test       -> PASS"
-Write-Host "  dev_router_status   -> Router Standard 正常显示"
+Write-Host "  Preset 选择         -> Router Standard (experimental) 或 Router Deep (experimental)"
+Write-Host "  dev_router_status   -> 对应 preset 正常显示"
+
